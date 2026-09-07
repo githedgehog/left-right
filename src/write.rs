@@ -288,7 +288,11 @@ where
                     // continue from this reader's epoch
                     starti = ii;
 
-                    if !cfg!(loom) {
+                    // The backoff counter exists to avoid a syscall while a reader is merely
+                    // slow. Under a model checker there is no such thing as a slow reader --
+                    // exactly one thread runs at a time -- so spinning cannot make progress and
+                    // the yield has to happen on every pass instead.
+                    if !cfg!(loom) && !cfg!(feature = "shuttle") {
                         // how eagerly should we retry?
                         if iter != 20 {
                             iter += 1;
@@ -299,6 +303,14 @@ where
 
                     #[cfg(loom)]
                     loom::thread::yield_now();
+
+                    // `std::thread::yield_now` is a bare `sched_yield`, which shuttle does not
+                    // instrument and so does not treat as a scheduling point. A writer that
+                    // reached this arm through it would spin forever: the reader whose epoch it
+                    // waits on is a green thread on the same OS thread, and can only run when
+                    // shuttle preempts. This yield is that preemption point.
+                    #[cfg(all(feature = "shuttle", not(loom)))]
+                    shuttle::thread::yield_now();
 
                     continue 'retry;
                 }

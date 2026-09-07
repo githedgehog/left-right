@@ -11,9 +11,21 @@ repository = "https://github.com/jonhoo/left-right.git"
 keywords = ["concurrency","lock-free"]
 categories = ["concurrency"]
 
+[features]
+# Route this crate's synchronisation through `shuttle`, so a shuttle test can see
+# the epoch protocol and, above all, preempt the writer's busy-wait.
+#
+# A cargo feature rather than a `cfg` like `loom`'s, because a `cfg` has to arrive
+# through `RUSTFLAGS`, and a `RUSTFLAGS` set in the environment replaces rather than
+# merges with the one in `.cargo/config.toml`. Tools that build their own value --
+# `cargo-bolero` is the one that matters here -- would silently drop it, and the
+# bolero-driven shuttle tests are exactly the ones that need this.
+shuttle = ["dep:shuttle"]
+
 [dependencies]
 slab = "0.4.1"
 crossbeam-utils = { version = "0.8", default-features = false }
+shuttle = { version = "0.9", optional = true }
 
 [target.'cfg(loom)'.dependencies]
 loom = "0.7.2"
